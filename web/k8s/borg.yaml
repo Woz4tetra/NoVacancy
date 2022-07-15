@@ -1,0 +1,79 @@
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  generation: 1
+  name: novacancy
+  namespace: mfg
+spec:
+  rules:
+  - host: novacancy.borg.formlabs.cloud
+    http:
+      paths:
+      - backend:
+          serviceName: novacancy
+          servicePort: 80
+        path: /
+status:
+  loadBalancer: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: novacancy
+  name: novacancy
+  namespace: mfg
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: novacancy
+  sessionAffinity: None
+  type: ClusterIP
+status:
+  loadBalancer: {}
+---
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  labels:
+    app: novacancy
+  name: novacancy
+  namespace: mfg
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: novacancy
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: novacancy
+    spec:
+      containers:
+      - image: docker.dev.formlabs.cloud/hackathon/novacancy:latest
+        name: novacancy
+        resources:
+          limits:
+            cpu: "1"
+            memory: 300Mi
+          requests:
+            cpu: 50m
+            memory: 200Mi
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+      - name: regcred
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 30
+status: {}

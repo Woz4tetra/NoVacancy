@@ -1,0 +1,9 @@
+#title {
+    margin-right: 15px;
+    font-size: 1.35em;
+}
+
+#app-content {
+    /* Margin to fix overlapping fixed navbar */
+    margin-top: 75px;
+}
