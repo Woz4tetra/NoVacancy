@@ -42,6 +42,9 @@ class TunnelSerialClient(TunnelBaseClient):
         self.baud = baud
         self.device = None
 
+        # a lock to prevent multiple sources from writing to the device at once
+        self.write_lock = threading.Lock()
+
     def start(self):
         """Initializes the serial device"""
         self.device = serial.Serial(self.address, self.baud)

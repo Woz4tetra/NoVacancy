@@ -15,6 +15,7 @@ class ClientContainer:
         self._queue = Queue()
         self._run_flag = True
         self._lock = threading.Lock()
+        self._read_buffer = b""
 
     def queue(self, packet: bytes):
         with self._lock:
@@ -39,11 +40,22 @@ class ClientContainer:
                 self.client.close()
 
     def send(self, packet: bytes):
-        self.client.send(packet)
+        with self._lock:
+            self.client.send(packet)
+    
+    def recv(self, block_size: int):
+        return self.client.recv(block_size)
+    
+    def get_buffer(self):
+        return self._read_buffer
+    
+    def set_buffer(self, buffer: bytes):
+        with self._lock:
+            self._read_buffer = buffer
 
 
 class TunnelSocketServer(TunnelBaseClient):
-    def __init__(self, address, port, max_packet_len=128, block_size=1024, timeout=1.0, update_delay=0.001, debug=False):
+    def __init__(self, address, port, max_packet_len=128, block_size=1024, connect_timeout=1.0, read_timeout=0.05, update_delay=0.001, debug=False):
         super().__init__(max_packet_len, debug)
 
         # device properties
@@ -52,7 +64,8 @@ class TunnelSocketServer(TunnelBaseClient):
         self.device = None
 
         self.block_size = block_size
-        self.timeout = timeout
+        self.connect_timeout = connect_timeout
+        self.read_timeout = read_timeout
         self.update_delay = update_delay
 
         self.socket_thread = threading.Thread(target=self._socket_server_task)
@@ -62,11 +75,12 @@ class TunnelSocketServer(TunnelBaseClient):
 
         self.socket_buffer = b""
         self.read_lock = threading.Lock()
+        self.clients_lock = threading.Lock()
 
     def _socket_server_task(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.settimeout(self.timeout)
+        sock.settimeout(self.connect_timeout)
         while self.socket_run_flag:
             try:
                 sock.bind((self.address, self.port))
@@ -84,30 +98,32 @@ class TunnelSocketServer(TunnelBaseClient):
                 continue
             if self.debug:
                 print("Opening new connection:", addr)
-            client.settimeout(self.timeout)
+            client.settimeout(self.read_timeout)
             container = ClientContainer(client)
             client_thread = threading.Thread(target=self._socket_client_task, args=(container,))
             client_thread.start()
-            self.clients.append(container)
+            with self.clients_lock:
+                self.clients.append(container)
+                delete_indices = []
+                for index, container in enumerate(self.clients):
+                    if not container.should_run():
+                        delete_indices.append(index)
+                for index in delete_indices[::-1]:
+                    self.clients.pop(index)
 
-            while True:
-                if not self.socket_run_flag:
-                    break
-                try:
-                    content = client.recv(self.block_size)
-                except socket.timeout as e:
-                    warnings.warn(str(e))
-                    continue
-                if len(content) == 0:
-                    break
-                with self.read_lock:
-                    self.socket_buffer += content
-            container.set_run(False)
-            client.close()
-            self.clients.remove(container)
+        with self.clients_lock:
+            for container in self.clients:
+                container.set_run(False)
 
     def _socket_client_task(self, container: ClientContainer):
         while container.should_run():
+            try:
+                content = container.recv(self.block_size)
+                if len(content) == 0:
+                    break
+            except socket.timeout:
+                pass
+            container.set_buffer(container.get_buffer() + content)
             if container.is_empty():
                 time.sleep(self.update_delay)
                 continue
