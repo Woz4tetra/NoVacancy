@@ -6,10 +6,10 @@ TAG=$(DOCKER_REPO)/$(APP_NAME):$(VERSION)
 
 # Build the container
 build:
-	docker build -t $(TAG) .
+	docker build .. -f Dockerfile -t $(TAG)
 
 run:
-	make build && docker run -p 80:80 $(TAG)
+	make build && docker run --env-file=../.env -p 5000:5000 $(TAG)
 
 push:
 	make build && docker push $(TAG)

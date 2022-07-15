@@ -31,10 +31,10 @@ SERVICE_ACCOUNT_FILE_CONTENT = {
     "private_key": os.environ['PRIVATE_KEY'].replace("\\n", "\n"),
 }
 SHEET_ID = os.environ['SHEET_ID']
-SHEET_READ_RANGE = "database!A3:G"
-SHEET_OCCUPIED_RANGE = "database!E3:E"
+SHEET_READ_RANGE = "database!A3:H"
+SHEET_OCCUPIED_RANGE = "database!F3:F"
 
-PhoneboothSheetRow = namedtuple('PhoneboothSheetRow', 'name description location id occupied ip_address mac_address')
+PhoneboothSheetRow = namedtuple('PhoneboothSheetRow', 'name image_link description location id occupied ip_address mac_address')
 
 
 def _configure_service_account_file() -> service_account.Credentials:
