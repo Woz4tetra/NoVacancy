@@ -1,5 +1,5 @@
 DOCKER_REPO=docker.dev.formlabs.cloud
-APP_NAME=hackathon/novacancy
+APP_NAME=hackathon/novacancy-web
 VERSION=latest
 TAG=$(DOCKER_REPO)/$(APP_NAME):$(VERSION)
 
