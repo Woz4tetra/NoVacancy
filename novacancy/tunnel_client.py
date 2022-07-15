@@ -1,22 +1,20 @@
 import time
 import asyncio
 import logging
-from lib.tunnel.serial.client import TunnelSerialClient
+from lib.tunnel.socket.server import TunnelSocketServer
 from lib.tunnel.result import PacketResult
 
 
-class RobotTunnelClient(TunnelSerialClient):
-    """Wrapper class for TunnelSerialClient adds functionality specific to the hopper swapper"""
+class NoVacancyTunnelClient(TunnelSocketServer):
+    """Wrapper class for TunnelSocketServer adds functionality specific to the NoVacancy system"""
 
-    def __init__(self, logger: logging.Logger, path, baud=1000000):
+    def __init__(self, logger: logging.Logger):
         """
         :param logger: logger object generated from LoggerManager
-        :param path: path to arduino device. ex: "/dev/ttyACM0"
-        :param baud: communication rate. Must match value defined on the arduino
         """
-        super().__init__(path, baud)
+        super().__init__("0.0.0.0", 8080)
         self.logger = logger
-        self.protocol.use_double_precision = False
+        self.protocol.use_double_precision = True
         self.start_time = time.monotonic()  # timer for ping
 
     async def packet_callback(self, result: PacketResult):
@@ -25,6 +23,7 @@ class RobotTunnelClient(TunnelSerialClient):
         :param result: PacketResult object containing data within the packet
         :return: None
         """
+        board_id = result.get_int(4, signed=False)
         if result.category == "ping":
             sent_time = result.get_float()
             current_time = self.get_time()
@@ -39,12 +38,3 @@ class RobotTunnelClient(TunnelSerialClient):
     def write_ping(self):
         """Write a ping message. Called externally"""
         self.write("ping", self.get_time())
-
-    def set_motor_enable(self, state):
-        self.write_handshake("motor_enable", state, write_interval=1.0, timeout=10.0)
-
-    def set_left_motor_velocity(self, velocity):
-        self.write("l", velocity)
-
-    def set_right_motor_velocity(self, velocity):
-        self.write("r", velocity)

@@ -28,6 +28,7 @@ class TunnelSocketClient(TunnelBaseClient):
 
         self.socket_buffer = b""
         self.read_lock = threading.Lock()
+        self.write_lock = threading.Lock()
 
     def _socket_client_task(self):
         while self.socket_run_flag:

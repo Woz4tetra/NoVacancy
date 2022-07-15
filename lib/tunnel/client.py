@@ -47,9 +47,6 @@ class TunnelBaseClient:
         # when get is called, an object is stored here that keeps track of its status
         self.pending_gets = []
 
-        # a lock to prevent multiple sources from writing to the device at once
-        self.write_lock = threading.Lock()
-
         # dictionary that stores callback functions for various categories.
         # format is {"category1": [callback1, callback2, ...], "category2": [callbackA, callbackB, ...], ...}
         self.callbacks = {}
