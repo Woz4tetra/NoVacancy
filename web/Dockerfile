@@ -1,5 +1,12 @@
-FROM nginx:1.15
+FROM python:3.9
 
-COPY src /usr/share/nginx/html
+COPY web/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
 
-COPY nginx/nginx.conf /etc/nginx/conf.d/default.conf
+COPY web/src /app
+COPY lib/ /app/lib/
+
+
+WORKDIR /app
+
+CMD [ "flask", "run", "--host=0.0.0.0"]
