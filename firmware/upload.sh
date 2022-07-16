@@ -2,4 +2,4 @@
 
 echo "Running firmware upload script"
 
-platformio run --target upload --upload-port=/dev/tty.usbserial-0246DD75
+platformio run --target upload #  --upload-port=/dev/tty.usbserial-0246DD75

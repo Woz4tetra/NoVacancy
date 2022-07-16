@@ -31,6 +31,7 @@ void packetCallback(PacketResult* result)
         double value;
         if (!result->getDouble(value)) { return; }
         tunnel::socket::writePacket("ping", "e", value);
+        Serial.println("Responding to ping");
     }
 }
 
@@ -72,5 +73,7 @@ void loop()
         loadcell_timer = current_time;
         long weight = loadcell.read();
         tunnel::socket::writePacket("weight", "d", (int)weight);
+        Serial.print("Sending weight: ");
+        Serial.println(weight);
     }
 }

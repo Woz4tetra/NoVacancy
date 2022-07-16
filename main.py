@@ -20,12 +20,9 @@ class MySession(Session):
         self.args = args
 
         # absolute paths for base and overlay config files
-        self.base_config_path = os.path.abspath("config/base.yaml")
-        self.overlay_config_path = os.path.abspath("config/robot.yaml")
+        self.config_path = os.path.abspath("config/config.yaml")
 
-        self.config = Config()  # contains the combined base and overlay configs
-        self.base_config = Config()  # all parameters for project (the base config)
-        self.overlay_config = Config()  # all rig specific parameters
+        self.config = Config()  # contains system config
         self._load_config()  # pulls parameters from disk into config objects
         self.logger = self._init_log()  # initializes log object. Only call this once!!
 
@@ -40,35 +37,16 @@ class MySession(Session):
 
     def _load_config(self):
         """Load config files from disk using previously defined paths into session properties"""
-        self.base_config = Config.from_file(self.base_config_path)
-        self.overlay_config = Config.from_file(self.overlay_config_path)
-        self.config.merge(self.base_config)
-        self.config.merge(self.overlay_config)
+        self.config = Config.from_file(self.config_path)
     
     def set_config(self, key: str, value):
         value = type(self.config.get_nested(key.split("/")))(value)
         self.config.set_nested(key.split("/"), value)
-        self.overlay_config.set_nested(key.split("/"), value, create=True)
-        self.overlay_config.save()
+        self.config.save()
 
     def _init_log(self):
         """Call the LoggerManager get_logger method to initialize logger. Only call once!"""
         return LoggerManager.get_logger(self.config.log)
-
-    def set_parameter(self, key: tuple, value):
-        """
-        Calls RecursiveNamespace.set_nested on merged config object. Allows config to be set via tuple keys.
-        This method also sets the system overlay config and saves it to disk so changes are loaded on restart.
-
-        :param key: a tuple of hashable objects
-        :param value: value to set the config entry with
-        :return: None
-        """
-        self.config.set_nested(key, value)
-        self.overlay_config.set_nested(key, value, create=True)
-        self.logger.info("Setting parameter %s to %s" % (key, value))
-        self.logger.info("Saving system overlay to %s" % self.overlay_config_path)
-        self.overlay_config.save(self.overlay_config_path)
 
     def stop(self, exception):
         """
@@ -77,6 +55,7 @@ class MySession(Session):
         self.tunnel.stop()  # shuts down serial communication
         if exception is not None:
             self.logger.error(exception, exc_info=True)
+
 
 async def update_tunnel(session: MySession):
     """

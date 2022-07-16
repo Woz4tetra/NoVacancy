@@ -23,7 +23,7 @@ class NoVacancyTunnelClient(TunnelSocketServer):
         :param result: PacketResult object containing data within the packet
         :return: None
         """
-        board_id = result.get_int(4, signed=False)
+        # board_id = result.get_int(4, signed=False)
         if result.category == "ping":
             sent_time = result.get_float()
             current_time = self.get_time()

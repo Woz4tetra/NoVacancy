@@ -1,0 +1,18 @@
+0:
+  group: "West Wing"
+  location: "Somerville HQ"
+  type: "single booth"
+  index: 0
+  description: "The first booth in west wing"
+1:
+  group: "West Wing"
+  location: "Somerville HQ"
+  type: "single booth"
+  index: 1
+  description: "The second booth in west wing"
+2:
+  group: "West Wing"
+  location: "Somerville HQ"
+  type: "single booth"
+  index: 2
+  description: "The third booth in west wing"

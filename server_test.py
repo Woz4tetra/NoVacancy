@@ -9,7 +9,7 @@ from lib.tunnel.socket.server import TunnelSocketServer
 
 class MyClient(TunnelSocketServer):
     def __init__(self, address, port):
-        super().__init__(address, port, debug=False)
+        super().__init__(address, port, debug=True)
         self.pings = []
         self.start_time = time.monotonic()
 
@@ -18,7 +18,7 @@ class MyClient(TunnelSocketServer):
             sent_time = result.get_double()
             current_time = self.get_time()
             ping = current_time - sent_time
-            # print("Ping: %0.5f (current: %0.5f, recv: %0.5f)" % (ping, current_time, sent_time))
+            print("Ping: %0.5f (current: %0.5f, recv: %0.5f)" % (ping, current_time, sent_time))
             self.pings.append(ping)
         elif result.category == "weight":
             print("Weight:", result.get_int(4, signed=True))
