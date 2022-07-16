@@ -28,7 +28,7 @@ class TunnelSocketFactory:
     def _socket_task(self):
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.settimeout(2.0)
+        sock.settimeout(10.0)
 
         sock.bind((self.address, self.port))
         sock.listen(0)
@@ -39,7 +39,7 @@ class TunnelSocketFactory:
             except socket.timeout:
                 time.sleep(0.1)
                 continue
-            client.settimeout(1.0)
+            client.settimeout(10.0)
             self._clients_queue.put((client, address))
     
     def iter_tunnels(self):
@@ -92,8 +92,6 @@ class TunnelSocketServer(TunnelBaseClient):
 
         self.is_running = False
 
-        self.client_lock = threading.Lock()
-
     def start(self):
         """Initializes the socket device"""
         self.is_running = True
@@ -107,31 +105,30 @@ class TunnelSocketServer(TunnelBaseClient):
     def _read(self, num_bytes):
         if not self.is_running:
             return b""
-        with self.client_lock:
-            try:
-                content = self.socket_client.recv(num_bytes)
-            except socket.timeout:
-                print("%s timeout" % str(self.address))
-                return b""
-            except BaseException as e:
-                warnings.warn(e)
-                self.stop()
-                return b""
+        try:
+            content = self.socket_client.recv(num_bytes)
+        except socket.timeout:
+            print("%s timeout" % str(self.address))
+            self.stop()
+            return b""
+        except BaseException as e:
+            print("Exception while attempting to read %s: %s" % (str(self.address), e))
+            self.stop()
+            return b""
 
-            if len(content) == 0:
-                self.stop()
-                return b""
-            return content
+        if len(content) == 0:
+            self.stop()
+            return b""
+        return content
 
     def _write(self, packet):
         if not self.is_running:
             return
-        with self.client_lock:
-            try:
-                self.socket_client.sendall(packet)
-            except BaseException as e:
-                warnings.warn(e)
-                self.stop()
+        try:
+            self.socket_client.sendall(packet)
+        except BaseException as e:
+            print("Failed to write packet:", e)
+            self.stop()
 
     def stop(self):
         self.is_running = False

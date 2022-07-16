@@ -82,7 +82,7 @@ async def ping_tunnel(session: MySession):
     while True:
         for tunnel in tunnel_factory.iter_tunnels():
             tunnel.write_ping()
-            await asyncio.sleep(0.5)
+        await asyncio.sleep(0.5)
 
 
 def main():
@@ -101,7 +101,7 @@ def main():
 
     # add relevant asyncio tasks to run
     session.add_task(update_tunnel(session))
-    # session.add_task(ping_tunnel(session))
+    session.add_task(ping_tunnel(session))
     session.add_task(session.behaviors.poll_occupancy())
     # if args.cli:
     #     session.add_task(session.cli.run())
