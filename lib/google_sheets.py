@@ -31,10 +31,10 @@ SERVICE_ACCOUNT_FILE_CONTENT = {
     "private_key": os.environ['PRIVATE_KEY'].replace("\\n", "\n"),
 }
 SHEET_ID = os.environ['SHEET_ID']
-SHEET_READ_RANGE = "database!A3:G"
-SHEET_OCCUPIED_RANGE = "database!E3:E"
+SHEET_READ_RANGE = "database!A3:H"
+SHEET_OCCUPIED_RANGE = "database!F3:F"
 
-PhoneboothSheetRow = namedtuple('PhoneboothSheetRow', 'name description location id occupied ip_address mac_address')
+PhoneboothSheetRow = namedtuple('PhoneboothSheetRow', 'name link description location id occupied ip_address mac_address')
 
 
 def _configure_service_account_file() -> service_account.Credentials:
@@ -84,8 +84,23 @@ def write_occupied_values(values: List[bool]) -> Dict:
     return _write_google_sheet_rows(SHEET_OCCUPIED_RANGE, formatted_values)
 
 
+def to_column_letter(column_int: int) -> str:
+    # https://stackoverflow.com/questions/23861680/convert-spreadsheet-number-to-column-letter
+    start_index = 1   #  it can start either at 0 or at 1
+    letter = ''
+    while column_int > 25 + start_index:   
+        letter += chr(65 + int((column_int-start_index)/26) - 1)
+        column_int = column_int - (int((column_int-start_index)/26))*26
+    letter += chr(65 - start_index + (int(column_int)))
+    return letter
+
+
+
 def read_google_sheet_rows() -> List[PhoneboothSheetRow]:
     sheet = _get_google_sheet_object()
     result = sheet.values().get(spreadsheetId=SHEET_ID, range=SHEET_READ_RANGE).execute()
-    rows = result.get("values", [])
-    return [PhoneboothSheetRow(*row) for row in rows]
+    if "values" in result:
+        rows = result["values"]
+        return [PhoneboothSheetRow(*row) for row in rows]
+    else:
+        return []

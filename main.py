@@ -10,7 +10,9 @@ from lib.logger_manager import LoggerManager
 from lib.session import Session
 from lib.config import Config
 
+from lib.tunnel.socket.server import TunnelSocketFactory
 from novacancy.tunnel_client import NoVacancyTunnelClient
+from novacancy.behaviors import Behaviors
 
 class MySession(Session):
     def __init__(self, args):
@@ -26,12 +28,19 @@ class MySession(Session):
         self._load_config()  # pulls parameters from disk into config objects
         self.logger = self._init_log()  # initializes log object. Only call this once!!
 
-        # wrapper for arduino interactions including Fuse stepper encoders
-        self.tunnel = NoVacancyTunnelClient(self.logger)
+        self.device_config = self.config.devices
+        self.device_groups = self.config.groups
+
+        self.tunnel_factory = TunnelSocketFactory(
+            NoVacancyTunnelClient, "0.0.0.0", 8080,
+            logger=self.logger,
+            device_config=self.device_config
+        )
+        self.behaviors = Behaviors(self.logger, self.device_groups, self.tunnel_factory)
 
     def start(self):
         """start relevant subsystems to fully initialize them"""
-        self.tunnel.start()
+        self.tunnel_factory.start()
 
         self.logger.info("Session started!")
 
@@ -52,7 +61,7 @@ class MySession(Session):
         """
         Fully shutdown appropriate subsystems.
         """
-        self.tunnel.stop()  # shuts down serial communication
+        self.tunnel_factory.stop()
         if exception is not None:
             self.logger.error(exception, exc_info=True)
 
@@ -62,27 +71,27 @@ async def update_tunnel(session: MySession):
     Task to call tunnel.update (arduino communications) in a loop
     :param session: instance of MySession
     """
-    tunnel = session.tunnel
+    tunnel_factory = session.tunnel_factory
     while True:
-        await tunnel.update()
+        await tunnel_factory.update()
         await asyncio.sleep(0.005)
 
 
 async def ping_tunnel(session: MySession):
-    tunnel = session.tunnel
+    tunnel_factory = session.tunnel_factory
     while True:
-        tunnel.write_ping()
-        await asyncio.sleep(0.5)
-
+        for tunnel in tunnel_factory.iter_tunnels():
+            tunnel.write_ping()
+            await asyncio.sleep(0.5)
 
 
 def main():
     """Where the show starts and stops"""
     parser = argparse.ArgumentParser(description="home-delivery-bot")
 
-    # parser.add_argument("--cli",
-    #                     action="store_true",
-    #                     help="If this flag is present, enable CLI")
+    parser.add_argument("--cli",
+                        action="store_true",
+                        help="If this flag is present, enable CLI")
     cmd_args = parser.parse_args()
 
     args = RecursiveNamespace()
@@ -92,8 +101,10 @@ def main():
 
     # add relevant asyncio tasks to run
     session.add_task(update_tunnel(session))
-    if args.cli:
-        session.add_task(session.cli.run())
+    # session.add_task(ping_tunnel(session))
+    session.add_task(session.behaviors.poll_occupancy())
+    # if args.cli:
+    #     session.add_task(session.cli.run())
 
     session.run()  # blocks until all tasks finish or an exception is raised
 

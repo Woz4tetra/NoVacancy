@@ -4,6 +4,9 @@
 
 HX711 loadcell;
 
+const int32_t BOARD_ID = 0;
+const int32_t BOARD_TYPE = 0;
+
 // HX711 circuit wiring
 const int LOADCELL_DOUT_PIN = 2;
 const int LOADCELL_SCK_PIN = 16;
@@ -15,7 +18,10 @@ const long LOADCELL_DIVIDER = 1;
 const int BLINK_LED_PIN = 0;
 
 uint32_t loadcell_timer = 0;
-const uint32_t loadcell_report_delay = 250;
+const uint32_t loadcell_report_delay = 1000;
+
+uint32_t heartbeat_timer = 0;
+const uint32_t heartbeat_delay = 1000;
 
 void packetCallback(PacketResult* result)
 {
@@ -75,5 +81,14 @@ void loop()
         tunnel::socket::writePacket("weight", "d", (int)weight);
         Serial.print("Sending weight: ");
         Serial.println(weight);
+    }
+
+    if (heartbeat_timer > current_time) {
+        heartbeat_timer = current_time;
+    }
+    if (current_time - heartbeat_timer > heartbeat_delay)  {
+        heartbeat_timer = current_time;
+        long weight = loadcell.read();
+        tunnel::socket::writePacket("heart", "uuu", BOARD_ID, BOARD_TYPE, current_time);
     }
 }

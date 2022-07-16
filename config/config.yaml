@@ -1,18 +1,27 @@
-0:
-  group: "West Wing"
-  location: "Somerville HQ"
-  type: "single booth"
-  index: 0
-  description: "The first booth in west wing"
-1:
-  group: "West Wing"
-  location: "Somerville HQ"
-  type: "single booth"
-  index: 1
-  description: "The second booth in west wing"
-2:
-  group: "West Wing"
-  location: "Somerville HQ"
-  type: "single booth"
-  index: 2
-  description: "The third booth in west wing"
+log:
+  name: "novacancy"
+  directory: "logs"
+  level: 10
+#  level: 20
+  suffix: "%Y-%m-%d"
+  file_name: "{name}-{date:%Y-%m-%d}.log"
+  format: "%(levelname)s\t%(asctime)s\t[%(name)s, %(filename)s:%(lineno)d]\t%(message)s"
+
+devices:
+  max_weight: 8388607
+  weights:
+    "0": 0.1
+    "1": 0.1
+    "2": 0.1
+  distances:
+    "0": 160.0
+    "1": 160.0
+    "2": 160.0
+
+groups:
+  west_wing:
+    devices: ["0", "1", "2"]
+    bigsign: "3"
+  bathrooms_101:
+    devices: ["4", "5"]
+    bigsign: "6"

@@ -51,6 +51,8 @@ class TunnelBaseClient:
         # format is {"category1": [callback1, callback2, ...], "category2": [callbackA, callbackB, ...], ...}
         self.callbacks = {}
 
+        self.throw_error_on_failed_handshake = False
+
     def start(self):
         """Initializes the device"""
         raise NotImplementedError
@@ -175,7 +177,11 @@ class TunnelBaseClient:
                 print("Writing handshake again %s" % handshake)
                 self._write(handshake.packet)
             if handshake.did_fail():
-                raise HandshakeFailedException("%s failed" % str(handshake))
+                exception = HandshakeFailedException("%s failed" % str(handshake))
+                if self.throw_error_on_failed_handshake:
+                    raise exception
+                else:
+                    warnings.warn(exception)
 
     def parse_debug_buffer(self, remaining_buffer):
         """Print debug messages in the buffer delimited by the \n character"""

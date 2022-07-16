@@ -1,4 +1,5 @@
 # specific files/directories
+logs/
 
 # MATLAB
 slprj/
