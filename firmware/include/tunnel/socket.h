@@ -7,6 +7,14 @@
 
 const uint32_t PACKET_STOP_TIMEOUT = 500;
 
+
+// #define WIFI_SSID 
+// #define WIFI_PASSWORD 
+
+// #define WIFI_HOST "10.35.11.4"
+// #define WIFI_PORT 8080
+
+
 #ifndef DEBUG_SERIAL
 #define DEBUG_SERIAL Serial
 #endif
