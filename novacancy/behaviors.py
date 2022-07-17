@@ -27,11 +27,14 @@ class Behaviors:
             with self.rows_lock:
                 try:
                     self.rows = read_database()
+                    time.sleep(1.5)
                     self.update_group_config(read_groups_config())
+                    time.sleep(1.5)
                     self.update_devices_config(read_devices_config())
+                    time.sleep(1.5)
                 except BaseException as e:
                     self.logger.error(e, exc_info=True)
-            time.sleep(10.0)
+            time.sleep(3.0)
     
     def update_group_config(self, new_group_config: RecursiveNamespace):
         if self.config.groups != new_group_config:
