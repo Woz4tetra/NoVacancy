@@ -1,0 +1,30 @@
+log:
+  name: "novacancy"
+  directory: "logs"
+  level: 10
+#  level: 20
+  suffix: "%Y-%m-%d"
+  file_name: "{name}-{date:%Y-%m-%d}.log"
+  format: "%(levelname)s\t%(asctime)s\t[%(name)s, %(filename)s:%(lineno)d]\t%(message)s"
+
+devices:
+  weights:
+    "0": -70000
+    "1": -70000
+    "2": -70000
+  weight_directions:
+    "0": false
+    "1": false
+    "2": false
+  distances:
+    "0": 170.0
+    "1": 170.0
+    "2": 170.0
+
+groups:
+  "West Wing":
+    devices: ["0", "1", "2"]
+    bigsign: "3"
+  "Bathrooms 101":
+    devices: ["4", "5"]
+    bigsign: "6"

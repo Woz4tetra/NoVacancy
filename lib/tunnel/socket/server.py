@@ -9,159 +9,131 @@ from lib.tunnel.util import *
 from ..client import TunnelBaseClient
 
 
-class ClientContainer:
-    def __init__(self, client):
-        self.client = client
-        self._queue = Queue()
-        self._run_flag = True
-        self._lock = threading.Lock()
-        self._read_buffer = b""
+class TunnelSocketFactory:
+    def __init__(self, tunnel_client_class, address, port, max_packet_len=128, block_size=1024, debug=False, **kwargs):
+        self.address = address
+        self.port = port
+        self.block_size = block_size
+        self.max_packet_len = max_packet_len
+        self.debug = debug
+        self.tunnel_client_class = tunnel_client_class
+        self.client_class_kwargs = kwargs
 
-    def queue(self, packet: bytes):
-        with self._lock:
-            self._queue.put(packet)
-    
-    def deque(self):
-        with self._lock:
-            return self._queue.get()
-    
-    def is_empty(self):
-        with self._lock:
-            return self._queue.empty()
-    
-    def should_run(self):
-        with self._lock:
-            return self._run_flag
-    
-    def set_run(self, state: bool):
-        with self._lock:
-            self._run_flag = state
-            if not state:
-                self.client.close()
+        self._socket_thread = threading.Thread(target=self._socket_task)
+        self._task_flag = True
+        self._clients_queue = Queue()
 
-    def send(self, packet: bytes):
-        with self._lock:
-            self.client.send(packet)
+        self.tunnels = []
+
+    def _socket_task(self):
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.settimeout(10.0)
+        sock.setblocking(False)
+
+        sock.bind((self.address, self.port))
+        sock.listen(0)
+
+        while self._task_flag:
+            try:
+                client, address = sock.accept()
+            except BlockingIOError:
+                time.sleep(0.5)
+                continue
+            except BaseException as e:
+                warnings.warn("%s: %s" % (type(e), e))
+                time.sleep(0.5)
+                continue
+            client.settimeout(10.0)
+            self._clients_queue.put((client, address))
+
+    def iter_tunnels(self):
+        for tunnel in self.tunnels:
+            yield tunnel
+
+    def start(self):
+        self._socket_thread.start()
     
-    def recv(self, block_size: int):
-        return self.client.recv(block_size)
+    def _check_clients(self):
+        delete_indices = []
+        for index, tunnel in enumerate(self.tunnels):
+            if not tunnel.is_running:
+                delete_indices.append(index)
+            for index in delete_indices[::-1]:
+                self.tunnels.pop(index)
+        
+        while not self._clients_queue.empty():
+            client, address = self._clients_queue.get()
+            tunnel = self.tunnel_client_class(client, address, self.max_packet_len, self.block_size, self.debug, **self.client_class_kwargs)
+            tunnel.start()
+            self.tunnels.append(tunnel)
     
-    def get_buffer(self):
-        return self._read_buffer
+    async def update(self):
+        self._check_clients()
+        all_results = []
+        for tunnel in self.tunnels:
+            results = await tunnel.update()
+            all_results.extend(results)
+        return all_results
     
-    def set_buffer(self, buffer: bytes):
-        with self._lock:
-            self._read_buffer = buffer
+    def write(self, category, formats, *args):
+        for tunnel in self.tunnels:
+            tunnel.write(category, formats, *args)
+    
+    def stop(self):
+        self._task_flag = False
+        for tunnel in self.tunnels:
+            tunnel.stop()
 
 
 class TunnelSocketServer(TunnelBaseClient):
-    def __init__(self, address, port, max_packet_len=128, block_size=1024, connect_timeout=1.0, read_timeout=0.05, update_delay=0.001, debug=False):
+    def __init__(self, socket_client, address, max_packet_len=128, block_size=1024, debug=False, **kwargs):
         super().__init__(max_packet_len, debug)
 
         # device properties
         self.address = address
-        self.port = port
-        self.device = None
-
+        self.socket_client = socket_client
         self.block_size = block_size
-        self.connect_timeout = connect_timeout
-        self.read_timeout = read_timeout
-        self.update_delay = update_delay
 
-        self.socket_thread = threading.Thread(target=self._socket_server_task)
-        self.socket_run_flag = True
-
-        self.clients = []
-
-        self.socket_buffer = b""
-        self.read_lock = threading.Lock()
-        self.clients_lock = threading.Lock()
-
-    def _socket_server_task(self):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.settimeout(self.connect_timeout)
-        while self.socket_run_flag:
-            try:
-                sock.bind((self.address, self.port))
-                sock.listen(0)
-                break
-            except OSError as e:
-                warnings.warn(str(e))
-                time.sleep(0.1)
-
-        while self.socket_run_flag:
-            try:
-                client, addr = sock.accept()
-            except socket.timeout:
-                time.sleep(0.1)
-                continue
-            if self.debug:
-                print("Opening new connection:", addr)
-            client.settimeout(self.read_timeout)
-            container = ClientContainer(client)
-            client_thread = threading.Thread(target=self._socket_client_task, args=(container,))
-            client_thread.start()
-            with self.clients_lock:
-                self.clients.append(container)
-                delete_indices = []
-                for index, container in enumerate(self.clients):
-                    if not container.should_run():
-                        delete_indices.append(index)
-                for index in delete_indices[::-1]:
-                    self.clients.pop(index)
-
-        with self.clients_lock:
-            for container in self.clients:
-                container.set_run(False)
-
-    def _socket_client_task(self, container: ClientContainer):
-        while container.should_run():
-            try:
-                content = container.recv(self.block_size)
-                if len(content) == 0:
-                    break
-            except socket.timeout:
-                pass
-            container.set_buffer(container.get_buffer() + content)
-            if container.is_empty():
-                time.sleep(self.update_delay)
-                continue
-            packet = container.deque()
-            if self.debug:
-                print("Dequeued: " + str(packet))
-            container.send(packet)
+        self.is_running = False
 
     def start(self):
         """Initializes the socket device"""
-        self.socket_thread.start()
+        self.is_running = True
 
     def flush(self):
         """Flushes all unread characters on the buffer"""
-        with self.read_lock:
-            self.socket_buffer = b""
 
     def available(self):
         return self.block_size
 
     def _read(self, num_bytes):
-        """Reads requested number of bytes (or less) from device"""
-        read_len = min(num_bytes, len(self.socket_buffer))
-        with self.read_lock:
-            read_bytes = self.socket_buffer[0:read_len]
-            self.socket_buffer = self.socket_buffer[read_len:]
-            return read_bytes
+        if not self.is_running:
+            return b""
+        try:
+            content = self.socket_client.recv(num_bytes)
+        except socket.timeout:
+            print("%s timeout" % str(self.address))
+            self.stop()
+            return b""
+        except BaseException as e:
+            print("Exception while attempting to read %s: %s" % (str(self.address), e))
+            self.stop()
+            return b""
+
+        if len(content) == 0:
+            self.stop()
+            return b""
+        return content
 
     def _write(self, packet):
-        """Wrapper for device.write. Locks the device so multiple sources can't write at the same time"""
-        with self.write_lock:
-            for container in self.clients:
-                container.queue(packet)
-            if self.debug:
-                print("Writing:", packet)
+        if not self.is_running:
+            return
+        try:
+            self.socket_client.sendall(packet)
+        except BaseException as e:
+            print("Failed to write packet:", e)
+            self.stop()
 
     def stop(self):
-        """Gracefully shutdown the device connection"""
-        self.socket_run_flag = False
-        if len(self.buffer) > 0:
-            print("Device message:", self.buffer)
+        self.is_running = False

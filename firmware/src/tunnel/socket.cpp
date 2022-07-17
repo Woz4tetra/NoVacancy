@@ -6,13 +6,6 @@ namespace tunnel
 {
 namespace socket
 {
-
-const char* ssid     = "Printernet";
-const char* password = "build some printers";
-
-const char* host = "10.35.11.4";
-const uint16_t port = 8080;
-
 WiFiClient client;
 
 char* _read_buffer;
@@ -21,10 +14,11 @@ uint32_t start_wait_time;
 bool _initialized = false;
 TunnelProtocol* _protocol;
 PacketResult* _result;
+uint32_t socket_ping_timer = 0;
 
 bool begin()
 {
-    WiFi.begin(ssid, password);
+    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
     WiFi.mode(WIFI_STA);
     _protocol = new TunnelProtocol();
     _result = new PacketResult(TunnelProtocol::NULL_ERROR, 0);
@@ -44,12 +38,12 @@ bool begin()
     DEBUG_SERIAL.println(WiFi.localIP());
 
     DEBUG_SERIAL.print("connecting to ");
-    DEBUG_SERIAL.print(host);
+    DEBUG_SERIAL.print(WIFI_HOST);
     DEBUG_SERIAL.print(":");
-    DEBUG_SERIAL.println(port);
+    DEBUG_SERIAL.println(WIFI_PORT);
     
     // Use WiFiClient class to create TCP connections
-    if (!client.connect(host, port)) {
+    if (!client.connect(WIFI_HOST, WIFI_PORT)) {
         DEBUG_SERIAL.println("connection failed");
         return false;
     }
@@ -57,16 +51,28 @@ bool begin()
     return true;
 }
 
+void update_ping() {
+    socket_ping_timer = millis();
+}
+
+
 bool check_connection()
 {
-    if (client.connected()) {
-        _initialized = true;
-        return true;
+    uint32_t current_time = millis();
+    if (socket_ping_timer > current_time) {
+        socket_ping_timer = current_time;
+    }
+    if (current_time - socket_ping_timer < PING_TIMEOUT) {
+        if (client.connected()) {
+            _initialized = true;
+            return true;
+        }
     }
     DEBUG_SERIAL.println("attemping connection");
-    _initialized = client.connect(host, port);
+    _initialized = client.connect(WIFI_HOST, WIFI_PORT);
     if (_initialized) {
         DEBUG_SERIAL.println("connection succeeded!");
+        update_ping();
     }
     else {
         DEBUG_SERIAL.println("connection failed");

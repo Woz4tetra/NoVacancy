@@ -1,7 +1,4 @@
-from types import SimpleNamespace
-
-
-class RecursiveNamespace(SimpleNamespace):
+class RecursiveNamespace:
     """
     Similar to types.SimpleNamespace, except nested dictionaries become RecursiveNamespace too
     Allows for reference by dot and array notation:
@@ -15,8 +12,13 @@ class RecursiveNamespace(SimpleNamespace):
         return entry
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
         self.update(kwargs)
+    
+    @classmethod
+    def from_dict(cls, d: dict):
+        self = cls()
+        self.update(d)
+        return self
 
     def to_dict(self) -> dict:
         """Recursively convert RecursiveNamespace to dict"""
@@ -318,12 +320,16 @@ class RecursiveNamespace(SimpleNamespace):
 
     def __getitem__(self, key):
         """Access an item at the top level using array get notation"""
+        if not isinstance(key, str):
+            raise AttributeError("Keys must be of type str: %s %s" % (type(key), repr(key)))
         return getattr(self, key)
 
     def __setitem__(self, key, value):
         """Set an item at the top level using array set notation"""
         if isinstance(value, dict):
             value = self.__class__(**value)
+        if not isinstance(key, str):
+            raise AttributeError("Keys must be of type str: %s %s" % (type(key), repr(key)))
         return setattr(self, key, value)
 
     def __eq__(self, other: object) -> bool:
@@ -334,6 +340,9 @@ class RecursiveNamespace(SimpleNamespace):
             return self.to_dict() == other.to_dict()
         else:
             return False
+
+    def __contains__(self, other):
+        return other in self.__dict__.keys()
 
 
 if __name__ == '__main__':
@@ -346,7 +355,7 @@ if __name__ == '__main__':
             "B": {"B_A": 0, "B_B": 1, "B_C": [{"B_C_A": 2.0}, 2.1, 2.2], "B_D": 3},
             "C": {"C_A": 0, "C_B": 1, "C_C": [{"C_C_A": 2.0}, 2.1, 2.2], "C_D": 3, "C_E": 4, "C_F": "567"},
         }
-        ns = RecursiveNamespace(**test_dict)
+        ns = RecursiveNamespace.from_dict(test_dict)
         pprint.pprint(test_dict)
         pprint.pprint(ns.to_dict())
         assert ns.to_dict() == test_dict, "%s != %s" % (ns.to_dict(), test_dict)
@@ -371,6 +380,8 @@ if __name__ == '__main__':
             assert True
         else:
             assert False
+        assert "A" in ns
+        assert "A_A" not in ns
 
         test_flat = ns.flatten()
         true_flat = {
