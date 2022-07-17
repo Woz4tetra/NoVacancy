@@ -1,7 +1,6 @@
 import os
 import asyncio
 import argparse
-import subprocess
 
 from lib.constants import *
 from lib.exceptions import *

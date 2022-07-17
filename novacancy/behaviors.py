@@ -14,6 +14,8 @@ class Behaviors:
         self.occupancy_states = {}
         self.bigsign_states = {}
 
+        self.prev_occupancy_row = []
+
         self.rows = []
         self.rows_lock = threading.Lock()
         self.db_poll_task = threading.Thread(target=self.poll_db)
@@ -29,7 +31,7 @@ class Behaviors:
                     self.update_devices_config(read_devices_config())
                 except BaseException as e:
                     self.logger.error(e, exc_info=True)
-            time.sleep(5.0)
+            time.sleep(10.0)
     
     def update_group_config(self, new_group_config: RecursiveNamespace):
         if self.config.groups != new_group_config:
@@ -76,8 +78,13 @@ class Behaviors:
                     self.logger.warn("Board ID %s is not in the database. Not updating row. Available IDs: %s" % (board_id, board_ids))
                 self.update_groups(board_id)
 
-            write_occupied_values(occupancies)
-            await asyncio.sleep(1.0)
+            if occupancies != self.prev_occupancy_row:
+                try:
+                    write_occupied_values(occupancies)
+                except BaseException as e:
+                    self.logger.error(e, exc_info=True)
+                self.prev_occupancy_row = occupancies
+            await asyncio.sleep(2.0)
 
     def get_tunnel(self, board_id):
         for tunnel in self.tunnel_factory.iter_tunnels():
@@ -123,6 +130,10 @@ class Behaviors:
             if group_ids is None:
                 self.logger.warn("Group name %s is not registered" % group_name)
                 return
+            for bid in group_ids:
+                if bid not in self.occupancy_states:
+                    self.logger.warn("Board %s is not connected. State not registered" % bid)
+                    return
 
             states = [self.occupancy_states[bid] for bid in group_ids]
             bigsign_state = all(states)
