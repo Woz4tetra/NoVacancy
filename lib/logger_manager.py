@@ -64,11 +64,9 @@ class LoggerManager:
         log_only = config.log_only
         path = config.path
 
-        logger = logging.getLogger(name)
-        logger.setLevel(level)
+        logging.captureWarnings(True)
 
         formatter = MyFormatter(format)
-
         rotate_handle = handlers.TimedRotatingFileHandler(
             path,
             when="midnight", interval=1
@@ -76,6 +74,17 @@ class LoggerManager:
         rotate_handle.setLevel(level)
         rotate_handle.setFormatter(formatter)
         rotate_handle.suffix = suffix
+
+        logger = logging.getLogger(name)
+        warnings_logger = logging.getLogger("py.warnings")
+        LoggerManager.configure_logger(logger, rotate_handle, formatter, level, log_only)
+        LoggerManager.configure_logger(warnings_logger, rotate_handle, formatter, level, log_only)
+
+        return logger
+
+    @staticmethod
+    def configure_logger(logger, rotate_handle, formatter, level, log_only):
+        logger.setLevel(level)
         logger.addHandler(rotate_handle)
 
         if not log_only:  # add printing to stdout if this is not true
@@ -84,4 +93,3 @@ class LoggerManager:
             print_handle.setFormatter(formatter)
             logger.addHandler(print_handle)
 
-        return logger
