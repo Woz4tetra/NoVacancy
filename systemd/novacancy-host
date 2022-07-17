@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+cd /home/pi/NoVacancy-host/NoVacancy && /usr/bin/python3 ./main.py > /dev/null 2>&1

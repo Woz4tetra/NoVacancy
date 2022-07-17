@@ -223,6 +223,7 @@ void packetCallback(PacketResult* result)
         double value;
         if (!result->getDouble(value)) { Serial.println("Failed to get ping value"); return; }
         tunnel::socket::writePacket("ping", "e", value);
+        tunnel::socket::update_ping();
         Serial.println("Responding to ping");
     }
 #if BOARD_TYPE == BOARD_TYPE_BOOTH
@@ -257,17 +258,23 @@ void packetCallback(PacketResult* result)
 
 }
 
-void setup()
+void flash_builtin_led(int flashes)
 {
-    pinMode(BLINK_LED_PIN, OUTPUT);
-    Serial.begin(115200);
-    for (int count = 0; count < 10; count++)
+    for (int count = 0; count < flashes; count++)
     {
         digitalWrite(BLINK_LED_PIN, HIGH);
         delay(50);
         digitalWrite(BLINK_LED_PIN, LOW);
         delay(50);
     }
+    digitalWrite(BLINK_LED_PIN, HIGH);
+}
+
+void setup()
+{
+    pinMode(BLINK_LED_PIN, OUTPUT);
+    Serial.begin(115200);
+    flash_builtin_led(10);
 
 #if BOARD_TYPE == BOARD_TYPE_BOOTH
     loadcell.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
@@ -282,6 +289,7 @@ void setup()
     setColor(IDLE_COLOR);
 #elif BOARD_TYPE == BOARD_TYPE_DOOR
 #elif BOARD_TYPE == BOARD_TYPE_BIGSIGN
+    pinMode(RELAY_PIN, OUTPUT);
 
     if (music_player.begin()) {
         music_player.sineTest(0x44, 500);    // Make a tone to indicate VS1053 is working
@@ -308,7 +316,6 @@ void setup()
         Serial.println(F("Couldn't find VS1053, do you have the right pins defined?"));
     }
     player_initialized = true;
-    pinMode(RELAY_PIN, OUTPUT);
 
     for (int count = 0; count < 3; count++)
     {
@@ -323,6 +330,7 @@ void setup()
 
     if (!tunnel::socket::begin()) {
         while (!tunnel::socket::check_connection()) {
+        flash_builtin_led(3);
             delay(1000);
         }
     }
@@ -331,6 +339,7 @@ void setup()
 void loop()
 {
     while (!tunnel::socket::check_connection()) {
+        flash_builtin_led(3);
 #if BOARD_TYPE == BOARD_TYPE_BOOTH
         setColor(IDLE_COLOR);
 #endif
@@ -368,5 +377,9 @@ void loop()
     if (current_time - heartbeat_timer > heartbeat_delay)  {
         heartbeat_timer = current_time;
         tunnel::socket::writePacket("heart", "uuu", BOARD_ID, BOARD_TYPE, current_time);
+        Serial.print("Sending heartbeat: ");
+        Serial.print(BOARD_ID);
+        Serial.print(' ');
+        Serial.println(BOARD_TYPE);
     }
 }

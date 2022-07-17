@@ -22,9 +22,9 @@ devices:
     "2": 170.0
 
 groups:
-  west_wing:
+  "West Wing":
     devices: ["0", "1", "2"]
     bigsign: "3"
-  bathrooms_101:
+  "Bathrooms 101":
     devices: ["4", "5"]
     bigsign: "6"

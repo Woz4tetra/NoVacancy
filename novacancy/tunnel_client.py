@@ -10,6 +10,10 @@ class DeviceType:
     DOOR = 1
     BIGSIGN = 2
 
+    @classmethod
+    def get_occupancy_types(cls):
+        return cls.BOOTH, cls.DOOR
+
 
 class NoVacancyTunnelClient(TunnelSocketServer):
     """Wrapper class for TunnelSocketServer adds functionality specific to the NoVacancy system"""
@@ -17,7 +21,7 @@ class NoVacancyTunnelClient(TunnelSocketServer):
     def __init__(self, socket_client, address, max_packet_len, block_size, debug, **kwargs):
         super().__init__(socket_client, address, max_packet_len, block_size, debug)
         self.logger = kwargs.get("logger")
-        self.device_config = kwargs.get("device_config")
+        self.config = kwargs.get("config")
         self.start_time = time.monotonic()  # timer for ping
         self.board_id = ""
         self.board_type = -1
@@ -81,13 +85,13 @@ class NoVacancyTunnelClient(TunnelSocketServer):
             return self.latch
 
     def get_weight_threshold(self):
-        return self.device_config.get_nested_default(("weights", self.board_id), -70000)
+        return self.config.devices.get_nested_default(("weights", self.board_id), -70000)
 
     def get_weight_threshold_direction(self):
-        return self.device_config.get_nested_default(("weight_directions", self.board_id), False)
+        return self.config.devices.get_nested_default(("weight_directions", self.board_id), False)
 
     def get_distance_threshold(self):
-        return self.device_config.get_nested_default(("distances", self.board_id), 170.0)
+        return self.config.devices.get_nested_default(("distances", self.board_id), 170.0)
 
     def get_heartbeat(self):
         return time.monotonic() - self.prev_heartbeat_local
@@ -108,6 +112,12 @@ class NoVacancyTunnelClient(TunnelSocketServer):
 
     def get_board_id(self):
         return self.board_id
+
+    def get_board_type(self):
+        return self.board_type
+    
+    def is_occupancy_device(self):
+        return self.board_type in DeviceType.get_occupancy_types()
 
     def get_time(self):
         """Get the time since __init__ was called"""

@@ -6,18 +6,13 @@ from lib.recursive_namespace import RecursiveNamespace
 
 
 class Behaviors:
-    def __init__(self, logger, device_groups: RecursiveNamespace, device_config: RecursiveNamespace, tunnel_factory):
+    def __init__(self, logger, config: RecursiveNamespace, tunnel_factory):
         self.logger = logger
         self.tunnel_factory = tunnel_factory
-        self.device_groups = device_groups
-        self.device_config = device_config
+        self.config = config
 
         self.occupancy_states = {}
-        self.id_to_group = {}
-        self.id_to_bigsign = {}
-        self.group_states = {}
-        self.prev_bigsign_states = {}
-        self.create_group_states()
+        self.bigsign_states = {}
 
         self.rows = []
         self.rows_lock = threading.Lock()
@@ -37,25 +32,14 @@ class Behaviors:
             time.sleep(5.0)
     
     def update_group_config(self, new_group_config: RecursiveNamespace):
-        if self.device_groups != new_group_config:
-            self.device_groups.merge(new_group_config)
-            self.create_group_states()
+        if self.config.groups != new_group_config:
+            self.logger.info("Device group config updated: %s" % str(new_group_config.to_dict()))
+        self.config.groups = new_group_config
 
     def update_devices_config(self, new_devices_config: RecursiveNamespace):
-        self.device_config.merge(new_devices_config)
-
-    def create_group_states(self):
-        self.id_to_group = {}
-        self.group_states = {}
-        self.id_to_bigsign = {}
-        for group_name, values in self.device_groups.items():
-            self.group_states[group_name] = {}
-            if values.bigsign not in self.prev_bigsign_states:
-                self.prev_bigsign_states[values.bigsign] = False
-            for board_id in values.devices:
-                self.id_to_group[board_id] = group_name
-                self.id_to_bigsign[board_id] = values.bigsign
-                self.group_states[group_name][board_id] = False
+        if self.config.devices != new_devices_config:
+            self.logger.info("Device config updated: %s" % str(new_devices_config.to_dict()))
+        self.config.devices = new_devices_config
 
     async def poll_occupancy(self):
         while True:
@@ -64,13 +48,17 @@ class Behaviors:
                 occupancies = [str(row.occupied) for row in self.rows]
 
             for tunnel in self.tunnel_factory.iter_tunnels():
+                board_id = tunnel.get_board_id()
+                occupancy = tunnel.get_occupancy()
+                ip_address = tunnel.address[0]
+
                 if tunnel.is_stale():
                     self.logger.info("Board ID %s (%s) is stale! Heartbeat stopped." % (board_id, ip_address))
                     continue
+            
+                if not tunnel.is_occupancy_device():
+                    continue
 
-                occupancy = tunnel.get_occupancy()
-                board_id = tunnel.get_board_id()
-                ip_address = tunnel.address[0]
                 if board_id not in self.occupancy_states:
                     self.occupancy_states[board_id] = not occupancy
                 if occupancy != self.occupancy_states[board_id]:
@@ -86,7 +74,7 @@ class Behaviors:
                     occupancies[db_index] = occupancy
                 else:
                     self.logger.warn("Board ID %s is not in the database. Not updating row. Available IDs: %s" % (board_id, board_ids))
-                self.update_groups(board_id, occupancy)
+                self.update_groups(board_id)
 
             write_occupied_values(occupancies)
             await asyncio.sleep(1.0)
@@ -97,23 +85,54 @@ class Behaviors:
                 return tunnel
         return None
 
-    def update_groups(self, board_id, occupancy):
+    def get_group_name(self, board_id):
+        for group_name, values in self.config.groups.items():
+            if board_id in values.devices:
+                return group_name
+        return None
+
+    def get_board_bigsign(self, board_id):
+        for values in self.config.groups.values():
+            if board_id in values.devices:
+                return values.bigsign
+        return None
+
+    def get_group_ids(self, group_name):
+        if group_name in self.config.groups:
+            return self.config.groups[group_name].devices
+        else:
+            return None
+
+    def update_groups(self, board_id):
+        if board_id in self.bigsign_states:
+            self.logger.warn("Board %s is a big sign. Not going to check its group." % board_id)
+            return  # the polled board is a big sign. No occupancy data
         with self.rows_lock:
-            group_name = self.id_to_group[board_id]
-            bigsign_id = self.id_to_bigsign[board_id]
-            if group_name in self.group_states and board_id in self.group_states[group_name]:
-                states = self.group_states[group_name]
-                states[board_id] = occupancy
+            group_name = self.get_group_name(board_id)
+            if group_name is None:
+                self.logger.warn("Board %s is not associated with a group" % board_id)
+                return
+            bigsign_id = self.get_board_bigsign(board_id)
+            if bigsign_id is None:
+                self.logger.warn("Board %s is not associated with a big sign" % board_id)
+                return
+            if bigsign_id not in self.bigsign_states:
+                self.bigsign_states[bigsign_id] = False
 
-                bigsign_state = all(states.values())
-                if bigsign_state != self.prev_bigsign_states[bigsign_id]:
-                    tunnel = self.get_tunnel(bigsign_id)
-                    if tunnel is not None:
-                        tunnel.set_bigsign(bigsign_state)
-                    else:
-                        self.logger.warn("%s doesn't map to a connected board!" % bigsign_id)
-                    self.logger.info("Setting %s big sign to %sVacancy" % (bigsign_id, "No " if bigsign_state else ""))
+            group_ids = self.get_group_ids(group_name)
+            if group_ids is None:
+                self.logger.warn("Group name %s is not registered" % group_name)
+                return
 
-                self.prev_bigsign_states[bigsign_id] = bigsign_state
-            else:
-                self.logger.warn("Board ID %s is not associated with a group" % board_id)
+            states = [self.occupancy_states[bid] for bid in group_ids]
+            bigsign_state = all(states)
+
+            if bigsign_state != self.bigsign_states[bigsign_id]:
+                tunnel = self.get_tunnel(bigsign_id)
+                if tunnel is not None:
+                    tunnel.set_bigsign(bigsign_state)
+                else:
+                    self.logger.warn("%s doesn't map to a connected board!" % bigsign_id)
+                self.logger.info("Setting %s big sign to %sVacancy" % (bigsign_id, "No " if bigsign_state else ""))
+
+            self.bigsign_states[bigsign_id] = bigsign_state

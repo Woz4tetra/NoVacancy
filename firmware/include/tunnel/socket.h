@@ -5,9 +5,6 @@
 #include "tunnel/protocol.h"
 
 
-const uint32_t PACKET_STOP_TIMEOUT = 500;
-
-
 // #define WIFI_SSID 
 // #define WIFI_PASSWORD 
 
@@ -23,11 +20,16 @@ namespace tunnel
 {
 namespace socket
 {
+
+const uint32_t PACKET_STOP_TIMEOUT = 500;
+const uint32_t PING_TIMEOUT = 10000;
+
 bool begin();
 bool check_connection();
 PacketResult* readPacket();
 void writePacket(const char *category, const char *formats, ...);
 void writeConfirmingPacket(const char *category, const char *formats, ...);
 void writeBuffer(int length);
+void update_ping();
 }
 }

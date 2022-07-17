@@ -29,6 +29,7 @@ class TunnelSocketFactory:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.settimeout(10.0)
+        sock.setblocking(False)
 
         sock.bind((self.address, self.port))
         sock.listen(0)
@@ -36,9 +37,12 @@ class TunnelSocketFactory:
         while self._task_flag:
             try:
                 client, address = sock.accept()
+            except BlockingIOError:
+                time.sleep(0.5)
+                continue
             except BaseException as e:
-                warnings.warn(e)
-                time.sleep(0.1)
+                warnings.warn("%s: %s" % (type(e), e))
+                time.sleep(0.5)
                 continue
             client.settimeout(10.0)
             self._clients_queue.put((client, address))

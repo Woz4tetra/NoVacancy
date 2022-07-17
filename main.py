@@ -28,15 +28,12 @@ class MySession(Session):
         self._load_config()  # pulls parameters from disk into config objects
         self.logger = self._init_log()  # initializes log object. Only call this once!!
 
-        self.device_config = self.config.devices
-        self.device_groups = self.config.groups
-
         self.tunnel_factory = TunnelSocketFactory(
             NoVacancyTunnelClient, "0.0.0.0", 8080,
             logger=self.logger,
-            device_config=self.device_config
+            config=self.config
         )
-        self.behaviors = Behaviors(self.logger, self.device_groups, self.device_config, self.tunnel_factory)
+        self.behaviors = Behaviors(self.logger, self.config, self.tunnel_factory)
 
     def start(self):
         """start relevant subsystems to fully initialize them"""
