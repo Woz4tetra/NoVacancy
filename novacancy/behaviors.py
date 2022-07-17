@@ -27,14 +27,11 @@ class Behaviors:
             with self.rows_lock:
                 try:
                     self.rows = read_database()
-                    time.sleep(1.5)
                     self.update_group_config(read_groups_config())
-                    time.sleep(1.5)
                     self.update_devices_config(read_devices_config())
-                    time.sleep(1.5)
                 except BaseException as e:
                     self.logger.error(e, exc_info=True)
-            time.sleep(3.0)
+            time.sleep(5.0)
     
     def update_group_config(self, new_group_config: RecursiveNamespace):
         if self.config.groups != new_group_config:
@@ -87,7 +84,7 @@ class Behaviors:
                 except BaseException as e:
                     self.logger.error(e, exc_info=True)
                 self.prev_occupancy_row = occupancies
-            await asyncio.sleep(2.0)
+            await asyncio.sleep(1.0)
 
     def get_tunnel(self, board_id):
         for tunnel in self.tunnel_factory.iter_tunnels():
