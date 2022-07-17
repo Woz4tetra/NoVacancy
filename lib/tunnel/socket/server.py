@@ -36,12 +36,13 @@ class TunnelSocketFactory:
         while self._task_flag:
             try:
                 client, address = sock.accept()
-            except socket.timeout:
+            except BaseException as e:
+                warnings.warn(e)
                 time.sleep(0.1)
                 continue
             client.settimeout(10.0)
             self._clients_queue.put((client, address))
-    
+
     def iter_tunnels(self):
         for tunnel in self.tunnels:
             yield tunnel

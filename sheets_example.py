@@ -1,9 +1,10 @@
 import time
+from pprint import pprint
 
-from lib.google_sheets import read_google_sheet_rows, write_occupied_values
+from novacancy.google_sheets import read_database, write_occupied_values, read_groups_config, read_devices_config
 
-if __name__ == '__main__':
-    row_values = read_google_sheet_rows()
+def write_all_test():
+    row_values = read_database()
     for row in row_values:
         print(row)
 
@@ -17,3 +18,9 @@ if __name__ == '__main__':
     write_occupied_values([row.occupied for row in row_values])
 
 
+
+
+if __name__ == '__main__':
+    # write_all_test()
+    pprint(read_groups_config().to_dict())
+    pprint(read_devices_config().to_dict())

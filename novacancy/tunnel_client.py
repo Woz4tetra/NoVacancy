@@ -39,7 +39,7 @@ class NoVacancyTunnelClient(TunnelSocketServer):
             sent_time = result.get_double()
             current_time = self.get_time()
             ping = current_time - sent_time
-            self.logger.info("Ping: %0.5f (current: %0.5f, recv: %0.5f)" % (ping, current_time, sent_time))
+            self.logger.info("Ping %s: %0.5f (current: %0.5f, recv: %0.5f)" % (self.board_id, ping, current_time, sent_time))
             await asyncio.sleep(0.0)
         elif result.category == "heart":
             board_id = str(result.get_int(4, signed=False))
@@ -53,8 +53,7 @@ class NoVacancyTunnelClient(TunnelSocketServer):
                 self.logger.info("Board ID for %s is %s" % (self.address, self.board_id))
             self.board_id = board_id
         elif result.category == "weight":
-            raw_value = result.get_int(4, signed=True)
-            self.weight = raw_value / self.device_config.max_weight
+            self.weight = result.get_int(4, signed=True)
         elif result.category == "dist":
             self.distance = result.get_float()
         elif result.category == "latch":
@@ -66,14 +65,30 @@ class NoVacancyTunnelClient(TunnelSocketServer):
             self.logger.warn("Board %s's type has not been set" % self.board_id)
             return False
         elif self.board_type == DeviceType.BOOTH:
-            weight_threshold = self.device_config.get_nested_default(("weights", self.board_id), 0.1)
-            distance_threshold = self.device_config.get_nested_default(("distances", self.board_id), 150.0)
+            weight_threshold = self.get_weight_threshold()
+            weight_direction = self.get_weight_threshold_direction()
+            distance_threshold = self.get_distance_threshold()
             self.logger.debug("Board ID: %s. Weight = %s, Distance = %s" % (self.board_id, self.weight, self.distance))
-            return self.weight > weight_threshold or (0.1 < self.distance < distance_threshold)
+            occupancy = False
+            if weight_direction:
+                occupancy |= self.weight > weight_threshold
+            else:
+                occupancy |= self.weight < weight_threshold
+            occupancy |= 0.1 < self.distance < distance_threshold
+            return occupancy
         elif self.board_type == DeviceType.DOOR:
             self.logger.debug("Board ID: %s. Latch = %s" % (self.board_id, self.latch))
             return self.latch
-    
+
+    def get_weight_threshold(self):
+        return self.device_config.get_nested_default(("weights", self.board_id), -70000)
+
+    def get_weight_threshold_direction(self):
+        return self.device_config.get_nested_default(("weight_directions", self.board_id), False)
+
+    def get_distance_threshold(self):
+        return self.device_config.get_nested_default(("distances", self.board_id), 170.0)
+
     def get_heartbeat(self):
         return time.monotonic() - self.prev_heartbeat_local
 
@@ -81,10 +96,15 @@ class NoVacancyTunnelClient(TunnelSocketServer):
         return self.get_heartbeat() > self.heartbeat_interval * 2.0
 
     def set_bigsign(self, occupancy: bool):
+        """True if occupied, False if vacant"""
         self.write_handshake("bigsign", "c", occupancy)
 
-    def play_sound(self, sound_name: str):
-        self.write_handshake("sound", "s", sound_name)
+    def set_led(self, pattern: str):
+        self.write_handshake("led", "s", pattern)
+
+    def set_volume(self, volume: int):
+        # lower numbers == louder volume!
+        self.write_handshake("volume", "c", volume)
 
     def get_board_id(self):
         return self.board_id

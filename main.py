@@ -36,7 +36,7 @@ class MySession(Session):
             logger=self.logger,
             device_config=self.device_config
         )
-        self.behaviors = Behaviors(self.logger, self.device_groups, self.tunnel_factory)
+        self.behaviors = Behaviors(self.logger, self.device_groups, self.device_config, self.tunnel_factory)
 
     def start(self):
         """start relevant subsystems to fully initialize them"""
@@ -82,20 +82,20 @@ async def ping_tunnel(session: MySession):
     while True:
         for tunnel in tunnel_factory.iter_tunnels():
             tunnel.write_ping()
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(5.0)
 
 
 def main():
     """Where the show starts and stops"""
-    parser = argparse.ArgumentParser(description="home-delivery-bot")
+    parser = argparse.ArgumentParser(description="novacancy")
 
-    parser.add_argument("--cli",
-                        action="store_true",
-                        help="If this flag is present, enable CLI")
+    # parser.add_argument("--cli",
+    #                     action="store_true",
+    #                     help="If this flag is present, enable CLI")
     cmd_args = parser.parse_args()
 
     args = RecursiveNamespace()
-    args.cli = cmd_args.cli
+    # args.cli = cmd_args.cli
 
     session = MySession(args)
 

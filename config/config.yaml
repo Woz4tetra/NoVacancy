@@ -8,15 +8,18 @@ log:
   format: "%(levelname)s\t%(asctime)s\t[%(name)s, %(filename)s:%(lineno)d]\t%(message)s"
 
 devices:
-  max_weight: -700000
   weights:
-    "0": 0.1
-    "1": 0.1
-    "2": 0.1
+    "0": -70000
+    "1": -70000
+    "2": -70000
+  weight_directions:
+    "0": false
+    "1": false
+    "2": false
   distances:
-    "0": 160.0
-    "1": 160.0
-    "2": 160.0
+    "0": 170.0
+    "1": 170.0
+    "2": 170.0
 
 groups:
   west_wing:

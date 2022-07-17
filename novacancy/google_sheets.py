@@ -7,9 +7,12 @@ import os.path
 import json
 from typing import List, Optional, Any, Dict, Tuple
 from collections import namedtuple
+import warnings
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+
+from lib.recursive_namespace import RecursiveNamespace
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
@@ -31,7 +34,9 @@ SERVICE_ACCOUNT_FILE_CONTENT = {
     "private_key": os.environ['PRIVATE_KEY'].replace("\\n", "\n"),
 }
 SHEET_ID = os.environ['SHEET_ID']
-SHEET_READ_RANGE = "database!A3:H"
+DATABASE_SHEET_READ_RANGE = "database!A3:H"
+GROUPS_SHEET_READ_RANGE = "groups!A2:Z"
+DEVICES_SHEET_READ_RANGE = "devices!A2:D"
 SHEET_OCCUPIED_RANGE = "database!F3:F"
 
 PhoneboothSheetRow = namedtuple('PhoneboothSheetRow', 'name link description location id occupied ip_address mac_address')
@@ -96,11 +101,56 @@ def to_column_letter(column_int: int) -> str:
 
 
 
-def read_google_sheet_rows() -> List[PhoneboothSheetRow]:
+def read_database() -> List[PhoneboothSheetRow]:
     sheet = _get_google_sheet_object()
-    result = sheet.values().get(spreadsheetId=SHEET_ID, range=SHEET_READ_RANGE).execute()
+    result = sheet.values().get(spreadsheetId=SHEET_ID, range=DATABASE_SHEET_READ_RANGE).execute()
     if "values" in result:
         rows = result["values"]
         return [PhoneboothSheetRow(*row) for row in rows]
     else:
         return []
+
+
+def read_groups_config() -> RecursiveNamespace:
+    sheet = _get_google_sheet_object()
+    result = sheet.values().get(spreadsheetId=SHEET_ID, range=GROUPS_SHEET_READ_RANGE).execute()
+    if "values" in result:
+        rows = result["values"]
+        ns = RecursiveNamespace()
+        for row in rows:
+            try:
+                name = str(row[0])
+                bigsign_device = str(row[1])
+                vacancy_devices = list(map(str, row[2:]))
+            except BaseException as e:
+                warnings.warn("Failed to read groups config: %s" % str(e))
+                return RecursiveNamespace()
+
+            ns[name] = RecursiveNamespace(bigsign=bigsign_device, devices=vacancy_devices)
+        return ns
+    else:
+        return RecursiveNamespace()
+
+
+def read_devices_config() -> RecursiveNamespace:
+    sheet = _get_google_sheet_object()
+    result = sheet.values().get(spreadsheetId=SHEET_ID, range=DEVICES_SHEET_READ_RANGE).execute()
+    if "values" in result:
+        rows = result["values"]
+        ns = RecursiveNamespace(weights={}, weight_directions={}, distances={})
+        for row in rows:
+            try:
+                board_id = str(row[0])
+                weight_threshold = int(row[1])
+                weight_threshold_direction = row[2].lower() == "true"
+                distance_threshold = float(row[3])
+            except BaseException as e:
+                warnings.warn("Failed to read devices config: %s" % str(e))
+                return RecursiveNamespace()
+            ns.weights[board_id] = weight_threshold
+            ns.weight_directions[board_id] = weight_threshold_direction
+            ns.distances[board_id] = distance_threshold
+
+        return ns
+    else:
+        return RecursiveNamespace()
